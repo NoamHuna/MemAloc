@@ -1,0 +1,19 @@
+# CMake build directories
+build/
+build-*/
+
+# macOS junk
+.DS_Store
+
+# Editor / tooling caches
+.cache/
+.vscode/
+.idea/
+
+# Compiled object files and binaries
+*.o
+*.a
+*.dSYM/
+
+# Editor-side compile_commands.json symlink
+/compile_commands.json
