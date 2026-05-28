@@ -7,7 +7,7 @@
 #define MIN_SPLIT_PAYLOAD 16
 
 /* ── 1. Static backing array ─────────────────────────────────────────────────
-   No mmap, no OS call. The linker places this in the BSS segment at build time.
+   No OS call. The linker places this in the BSS segment at build time.
    On a bare-metal MCU this just sits in RAM, exactly as a real RTOS heap does. */
 static uint8_t g_heap[REGION_SIZE] __attribute__((aligned(16)));
 
@@ -100,7 +100,7 @@ void *my_malloc(size_t size) {
             cur->is_free = 0;
 
             /* ── update stats ── */
-            g_bytes_used  += cur->size;
+            g_bytes_used  += sizeof(block_header_t) + cur->size;
             g_alloc_count += 1;
             if (g_bytes_used > g_hwm)
                 g_hwm = g_bytes_used;
@@ -118,28 +118,30 @@ void my_free(void *ptr) {
 
     block_header_t *header = (block_header_t *)((char *)ptr - sizeof(block_header_t));
 
-    /* ── update stats ── */
+    /* payload is no longer in use; header stays in memory until coalesced */
     g_bytes_used  -= header->size;
     g_alloc_count -= 1;
 
     header->is_free = 1;
-
-    /* Coalesce with next block if also free */
+    bool is_coalesced = false;
+    /* Coalesce with next block if also free — next's header disappears */
     if (header->next != NULL && header->next->is_free) {
         block_header_t *next = header->next;
         header->size += sizeof(block_header_t) + next->size;
         header->next  = next->next;
         if (next->next != NULL)
             next->next->prev = header;
+        g_bytes_used -= sizeof(block_header_t);   /* next's header absorbed */
     }
 
-    /* Coalesce with previous block if also free */
+    /* Coalesce with previous block if also free — our header disappears */
     if (header->prev != NULL && header->prev->is_free) {
         block_header_t *prev = header->prev;
         prev->size += sizeof(block_header_t) + header->size;
         prev->next  = header->next;
         if (header->next != NULL)
             header->next->prev = prev;
+        g_bytes_used -= sizeof(block_header_t);   /* our header absorbed */
     }
 }
 

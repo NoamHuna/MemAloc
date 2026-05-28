@@ -140,24 +140,28 @@ TEST(test_stats) {
     assert(heap_bytes_used() == 0);
     assert(heap_alloc_count() == 0);
 
+    /* malloc: full cost = header + payload */
     void *a = my_malloc(64);
-    assert(heap_bytes_used() == 64);
+    assert(heap_bytes_used() == 32 + 64);
     assert(heap_alloc_count() == 1);
 
     void *b = my_malloc(128);
-    assert(heap_bytes_used() == 192);
+    assert(heap_bytes_used() == (32 + 64) + (32 + 128));
     assert(heap_alloc_count() == 2);
-    assert(heap_hwm() == 192);
+    assert(heap_hwm() == (32 + 64) + (32 + 128));
 
+    /* free a: only payload removed, header stays until coalesced
+       256 - 64(payload of a) = 192 */
     my_free(a);
-    assert(heap_bytes_used() == 128);
+    assert(heap_bytes_used() == 192);
     assert(heap_alloc_count() == 1);
-    assert(heap_hwm() == 192);   /* hwm never goes down */
+    assert(heap_hwm() == (32 + 64) + (32 + 128));   /* hwm never goes down */
 
+    /* free b: b's payload gone, then a+b coalesce — both headers absorbed */
     my_free(b);
     assert(heap_bytes_used() == 0);
     assert(heap_alloc_count() == 0);
-    assert(heap_hwm() == 192);   /* still 192 */
+    assert(heap_hwm() == (32 + 64) + (32 + 128));   /* still at peak */
 
     printf("(hwm=%zu) ", heap_hwm());
 }
